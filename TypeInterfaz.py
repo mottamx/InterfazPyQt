@@ -20,6 +20,7 @@ class MainWindow(QMainWindow):
         self.setFixedSize(850, 650)
         #QPlainTextEdit object
         self.editor = QPlainTextEdit()
+        self.editor.textChanged.connect(self.on_text_changed)
         fixedfont = QFontDatabase.systemFont(QFontDatabase.FixedFont)
         fixedfont.setPointSize(9)
         self.editor.setFont(fixedfont)
@@ -38,7 +39,11 @@ class MainWindow(QMainWindow):
             #print("{}: {} [{}]".format(port, desc, hwid))
             self.wPortCombo.addItem(port)
         namePort.setBuddy(self.wPortCombo)
-        wLinea=QLineEdit()
+        wlabelLineT = QLabel("Lineas totales:")
+        #wlabelLineT.setFixedSize(200,25)
+        self.wlineasTotales = QLineEdit("00")
+
+        wLinea = QLineEdit(":Linea actual:")
         #Buttons 
         wPortsB=QPushButton()
         wPortsB.setText("Actualizar puertos")
@@ -47,12 +52,12 @@ class MainWindow(QMainWindow):
         wTextB.setText("Formato texto")
         wTextB.pressed.connect( lambda n=3: self.breakLines(n) )
         wLineB=QPushButton()
-        wLineB.setText("Enviar linea")
+        wLineB.setText("PAUSAR / DETENER")
         wAllB=QPushButton()
         wAllB.setText("Enviar todo")
-        wListo=QRadioButton("Texto listo para enviar")
-        wListo.setChecked(False)
-        wListo.setEnabled(False)
+        self.wListo=QRadioButton("Texto listo para enviar")
+        self.wListo.setChecked(False)
+        self.wListo.setEnabled(False)
         #Progress bar
         wAvance=QProgressBar()
         wAvance.isTextVisible = True
@@ -62,24 +67,29 @@ class MainWindow(QMainWindow):
         layout = QHBoxLayout() #All
         layout2 = QVBoxLayout() #All right side 
         layout3 = QGridLayout() #Top buttons
+        layout3b = QGridLayout() #Top buttons
         layout4 = QVBoxLayout() #Middle buttons
         layout5 = QVBoxLayout() #Bottom buttons
+        
         layout.addWidget(self.editor)
         layout.addLayout(layout2)
         layout2.addLayout(layout3)
         layout2.addLayout(layout4)
+        layout2.addLayout(layout3b)
         layout2.addLayout(layout5)
         layout3.addWidget(nameLabel, 0, 1)
         layout3.addWidget(self.wModelCombo, 0, 2)
         layout3.addWidget(wPortsB, 1, 1)
         layout3.addWidget(namePort, 2, 1)
         layout3.addWidget(self.wPortCombo, 2, 2)
+        layout3b.addWidget(wlabelLineT, 0, 1)
+        layout3b.addWidget(self.wlineasTotales, 0, 2)
         layout4.addWidget(wTextB)
-        layout4.addWidget(wListo)
+        layout4.addWidget(self.wListo)
         layout5.addWidget(wLinea)
-        layout5.addWidget(wLineB)
         layout5.addWidget(wAllB)
         layout5.addWidget(wAvance)
+        layout5.addWidget(wLineB)
         container = QWidget()
         container.setLayout(layout)
         self.setCentralWidget(container)
@@ -91,31 +101,55 @@ class MainWindow(QMainWindow):
             #print("{}: {} [{}]".format(port, desc, hwid))
             self.wPortCombo.addItem(port)
     #Break text lines intro chucks that can be processed by hardware
-
     def breakLines(self,n):
-        text = self.editor.toPlainText()
-        lines = text.splitlines()
-        print("Total de líneas: ", len(lines)) #If a single long string is entered, this method does not work, check to split despite no newlines
-        print(type(lines))
-        bufferCadena = ""
-        # For each line split in 65 chars max and insert the exceding text to the new line
-        for index, line in enumerate(lines):
-            if len(line) > 65:
-                indStr = line.rfind(' ', 0, 65) #search space to break the string
-                if indStr == -1: #No space before 65, so break in 65
-                    indStr = 65
-                bufferCadena = line[indStr+1:]    
-                formatedline = line[:indStr]
-                print(formatedline)
-                lines[index] = formatedline
-                lines[index+1] = bufferCadena + ' ' + lines[index+1]
-            else:
-                print(line)
-        #Here lines is already splitted, but will join to show text in windget        
-        formattedText = "\n".join(lines)
-        self.editor.clear()
-        self.editor.setPlainText(formattedText)
-
+        text = self.editor.toPlainText() #Gets all text from QPlainTextEdit
+        allChars = len(text)
+        if allChars > 0:
+            #print(cantidad_caracteres)
+            allLines = text.splitlines()
+            #print("Total de líneas: ", len(allLines)) #If a single long string is entered, this method does not work, check to split despite no newlines
+            splittedLine2Many = []
+            #If there is a big text with no lines
+            for index, line in enumerate(allLines):
+                if len(line)>65:
+                    #print("La linea supera longitud", index)
+                    #As line is larger than 65 chars, we need to split accordingly (in a space)
+                    indStr = 0 #To track current split char index start and end
+                    indEnd = 0
+                    newLen = 0 #Track if all chars are now in the list of strings
+                    #print("La linea tiene caracteres", len(line))
+                    while newLen <= len(line): #While we get all the chars in the new list
+                        if(newLen + 65) <= len(line):
+                            indEnd = line.rfind(' ', indStr, indStr+65) #Find first space to break
+                            if indEnd == -1: #No space before 65, so break in 65
+                                indEnd = 65
+                            #print("El primer corte es en ", indEnd)
+                            newLine=line[indStr:indEnd]
+                            splittedLine2Many.append(newLine)
+                            #print(newLine)
+                            newLen += len(newLine)+1
+                            #print("Del total, llevo asignados", newLen)
+                            indStr = indEnd+1 #Update new start to previous end
+                        else:
+                            #print("Segundo caso, cadena mas corta de 65")
+                            newLine=line[indStr:]
+                            #print(newLine)
+                            splittedLine2Many.append(newLine)
+                            newLen += len(newLine)+1                     
+                            #print("Del total, llevo asignados", newLen)
+                else:
+                    splittedLine2Many.append(line) 
+            #Here lines is already splitted, but will join to show text in windget        
+            formattedText = "\n".join(splittedLine2Many)
+            self.editor.clear()
+            self.editor.setPlainText(formattedText)
+            self.wlineasTotales.setText(str(len(splittedLine2Many)))
+            self.wListo.setChecked(True)
+            #print("Fin")
+    #
+    def on_text_changed (self):
+        #print("Texto updateado")
+        self.wListo.setChecked(False)
 # Main
 
 app = QApplication(sys.argv)
