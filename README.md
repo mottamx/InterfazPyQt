@@ -1,4 +1,4 @@
-# InterfazPyQt
+# TypewriterController
 
 By a SBC (RPi Zero W), running a Flask service, it displays a website where text can be pasted.
 Then the text is processed by the script and GPIO pins activated accordingly.
